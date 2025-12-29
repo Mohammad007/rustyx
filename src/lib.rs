@@ -219,7 +219,7 @@
 //! - [`websocket`] - WebSocket support
 //! - [`static_files`] - Static file serving
 
-#![doc(html_root_url = "https://docs.rs/rustyx/0.1.0")]
+#![doc(html_root_url = "https://docs.rs/rustyx/0.2.0")]
 #![allow(missing_docs)] // TODO: Add docs for all public items before 1.0
 #![warn(rustdoc::missing_crate_level_docs)]
 
