@@ -35,6 +35,7 @@
   - [Response](#response)
   - [Middleware](#middleware)
 - [Advanced Features](#-advanced-features)
+  - [File Upload](#file-upload)
   - [Rate Limiting](#rate-limiting)
   - [WebSocket Support](#websocket-support)
   - [Static File Serving](#static-file-serving)
@@ -57,6 +58,7 @@
 | 🗄️ **Multi-Database ORM** | MongoDB, MySQL, PostgreSQL, SQLite support |
 | 🌐 **WebSocket Support** | Real-time bidirectional communication |
 | 📁 **Static Files** | Serve static assets with MIME type detection |
+| 📤 **File Upload** | Multer-like file upload with validation |
 | 🔒 **Type-Safe** | Leverage Rust's type system for safer code |
 | 📝 **JSON-First** | Designed for building REST APIs |
 | 🛡️ **Security** | Built-in Helmet middleware for security headers |
@@ -357,6 +359,63 @@ app.use_middleware(|req, res, next| async move {
 ---
 
 ## 🔥 Advanced Features
+
+### File Upload
+
+Handle single and multiple file uploads (similar to Express Multer):
+
+```rust
+use rustyx::prelude::*;
+
+let uploader = Uploader::new(
+    UploadConfig::new()
+        .destination("./uploads")
+        .max_file_size_mb(5)
+        .allowed_extensions(vec!["png", "jpg", "jpeg", "pdf"])
+);
+
+app.post("/upload", move |req, res| {
+    let uploader = uploader.clone();
+    async move {
+        let content_type = req.content_type().unwrap_or_default();
+        let boundary = parse_boundary(&content_type).unwrap();
+        let fields = parse_multipart(req.body(), &boundary)?;
+        
+        for field in fields {
+            if let Some(filename) = field.filename {
+                let file = uploader.upload_single(
+                    &field.name,
+                    field.data,
+                    &filename,
+                    &field.content_type.unwrap_or_default()
+                ).await?;
+                
+                return res.json(json!({
+                    "filename": file.filename,
+                    "size": file.size
+                }));
+            }
+        }
+        res.bad_request("No file provided")
+    }
+});
+```
+
+Configuration options:
+
+```rust
+UploadConfig::new()
+    .destination("./uploads")        // Upload directory
+    .max_file_size_mb(10)            // Max 10MB
+    .max_files(5)                    // Max 5 files per request
+    .images_only()                   // Only images (PNG, JPG, GIF, WebP)
+    .documents_only()                // Only docs (PDF, DOC, XLS)
+    .allowed_extensions(vec!["png", "pdf"])  // Custom extensions
+    .keep_original_name()            // Keep original filename
+    .use_uuid()                      // UUID filename (default)
+```
+
+📖 **Full documentation:** [docs/UPLOAD.md](docs/UPLOAD.md)
 
 ### Rate Limiting
 
