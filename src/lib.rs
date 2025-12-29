@@ -155,6 +155,7 @@ pub mod response;
 pub mod router;
 pub mod routes;
 pub mod static_files;
+pub mod upload;
 pub mod utils;
 pub mod websocket;
 
@@ -166,6 +167,7 @@ pub use request::Request;
 pub use response::Response;
 pub use router::Router;
 pub use static_files::{static_handler, StaticConfig};
+pub use upload::{UploadConfig, UploadedFile, Uploader};
 pub use websocket::{WsMessage, WsRoom, WsServer};
 
 /// Prelude module for convenient imports.
@@ -198,6 +200,10 @@ pub mod prelude {
     pub use crate::response::{CookieOptions, Response};
     pub use crate::router::Router;
     pub use crate::static_files::{static_handler, StaticConfig};
+    pub use crate::upload::{
+        parse_boundary, parse_multipart, FileNaming, MultipartField, StorageType, UploadConfig,
+        UploadError, UploadedFile, Uploader,
+    };
     pub use crate::websocket::{WsMessage, WsRoom, WsServer};
     pub use async_trait::async_trait;
     pub use serde::{Deserialize, Serialize};
