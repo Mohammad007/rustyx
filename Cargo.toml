@@ -8,7 +8,7 @@ license = "MIT"
 repository = "https://github.com/Mohammad007/rustyx"
 documentation = "https://docs.rs/rustyx"
 readme = "README.md"
-keywords = ["web", "framework", "express", "api", "orm", "websocket", "rate-limiting", "static-file-serving", "middleware", "orm", "database", "file-upload"]
+keywords = ["web", "framework", "express", "api", "upload"]
 categories = ["web-programming", "web-programming::http-server", "database"]
 
 [lib]
