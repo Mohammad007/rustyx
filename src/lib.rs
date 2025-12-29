@@ -10,6 +10,7 @@
 //! - 🎯 **ExpressJS-like API** - Familiar interface for JavaScript developers
 //! - ⚡ **Blazingly Fast** - Built on Hyper and Tokio for maximum performance
 //! - 🔌 **Middleware Support** - Logger, CORS, Rate Limiting, Helmet, Timeout
+//! - 📤 **File Upload** - Multer-like file upload with validation
 //! - 🗄️ **Multi-Database ORM** - MongoDB, MySQL, PostgreSQL, SQLite support
 //! - 🌐 **WebSocket Support** - Real-time bidirectional communication
 //! - 📁 **Static Files** - Serve static assets with MIME type detection
@@ -118,6 +119,83 @@
 //! - `res.redirect("/path")` - Send redirect
 //! - `res.header("name", "value")` - Set header
 //!
+//! ## File Upload
+//!
+//! Handle file uploads similar to Express Multer:
+//!
+//! ```rust,no_run
+//! use rustyx::prelude::*;
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<()> {
+//!     let app = RustyX::new();
+//!
+//!     // Create uploader configuration
+//!     let uploader = Uploader::new(
+//!         UploadConfig::new()
+//!             .destination("./uploads")
+//!             .max_file_size_mb(5)
+//!             .allowed_extensions(vec!["png", "jpg", "jpeg", "pdf"])
+//!     );
+//!
+//!     app.post("/upload", move |req, res| {
+//!         let uploader = uploader.clone();
+//!         async move {
+//!             // Parse multipart form data
+//!             let content_type = req.content_type().unwrap_or_default();
+//!             let boundary = parse_boundary(&content_type).unwrap();
+//!             let fields = parse_multipart(req.body(), &boundary).unwrap();
+//!             
+//!             for field in fields {
+//!                 if let Some(filename) = field.filename {
+//!                     let result = uploader.upload_single(
+//!                         &field.name,
+//!                         field.data,
+//!                         &filename,
+//!                         &field.content_type.unwrap_or_default()
+//!                     ).await;
+//!                     
+//!                     match result {
+//!                         Ok(file) => return res.json(json!({
+//!                             "filename": file.filename,
+//!                             "size": file.size
+//!                         })),
+//!                         Err(e) => return res.bad_request(&e.to_string())
+//!                     }
+//!                 }
+//!             }
+//!             res.bad_request("No file provided")
+//!         }
+//!     });
+//!
+//!     app.listen(3000).await
+//! }
+//! ```
+//!
+//! ### Upload Configuration Options
+//!
+//! | Method | Description |
+//! |--------|-------------|
+//! | `.destination("./uploads")` | Set upload directory |
+//! | `.max_file_size_mb(10)` | Max file size in MB |
+//! | `.max_files(5)` | Max files per request |
+//! | `.images_only()` | Only allow image files |
+//! | `.documents_only()` | Only allow document files |
+//! | `.allowed_extensions(vec!["png", "pdf"])` | Custom allowed extensions |
+//! | `.allowed_types(vec!["image/png"])` | Custom allowed MIME types |
+//! | `.keep_original_name()` | Keep original filename |
+//! | `.use_uuid()` | Use UUID for filename |
+//!
+//! ### Supported File Types
+//!
+//! **Images:** PNG, JPG, JPEG, GIF, WebP, SVG, ICO, BMP, TIFF
+//!
+//! **Documents:** PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, TXT, CSV
+//!
+//! **Media:** MP3, WAV, OGG, MP4, WebM, AVI, MOV
+//!
+//! **Archives:** ZIP, RAR, 7Z, TAR, GZ
+//!
 //! ## Feature Flags
 //!
 //! | Feature | Description |
@@ -136,6 +214,7 @@
 //! - [`request`] - Request handling
 //! - [`response`] - Response building
 //! - [`middleware`] - Middleware functions
+//! - [`upload`] - File upload handling
 //! - [`db`] - Database integration
 //! - [`websocket`] - WebSocket support
 //! - [`static_files`] - Static file serving
