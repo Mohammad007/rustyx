@@ -2,6 +2,8 @@
 //!
 //! Provides middleware functionality similar to Express middleware.
 
+pub mod rate_limit;
+
 use crate::request::Request;
 use crate::response::Response;
 
@@ -10,6 +12,9 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 use tracing::info;
+
+// Re-export rate limiting
+pub use rate_limit::{rate_limiter, simple_rate_limit, RateLimiter, RateLimiterConfig};
 
 /// Next function type for middleware chaining
 pub type Next =
@@ -65,10 +70,18 @@ impl Default for MiddlewareStack {
 // ============================================================================
 
 /// Logger middleware - logs all incoming requests
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use rustyx::middleware::logger;
+///
+/// app.use_middleware(logger());
+/// ```
 pub fn logger() -> impl Fn(Request, Response, Next) -> Pin<Box<dyn Future<Output = Response> + Send>>
-+ Send
-+ Sync
-+ Clone {
+       + Send
+       + Sync
+       + Clone {
     move |req: Request, res: Response, next: Next| {
         Box::pin(async move {
             let method = req.method().clone();
@@ -88,12 +101,24 @@ pub fn logger() -> impl Fn(Request, Response, Next) -> Pin<Box<dyn Future<Output
 }
 
 /// CORS middleware - adds CORS headers to all responses
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use rustyx::middleware::cors;
+///
+/// // Allow all origins
+/// app.use_middleware(cors("*"));
+///
+/// // Allow specific origin
+/// app.use_middleware(cors("https://example.com"));
+/// ```
 pub fn cors(
     origin: &'static str,
 ) -> impl Fn(Request, Response, Next) -> Pin<Box<dyn Future<Output = Response> + Send>>
-+ Send
-+ Sync
-+ Clone {
+       + Send
+       + Sync
+       + Clone {
     move |req: Request, res: Response, next: Next| {
         Box::pin(async move {
             // Handle preflight requests
@@ -119,6 +144,88 @@ pub fn cors(
     }
 }
 
+/// Advanced CORS options
+#[derive(Clone)]
+pub struct CorsOptions {
+    pub origin: String,
+    pub methods: Vec<String>,
+    pub allowed_headers: Vec<String>,
+    pub exposed_headers: Vec<String>,
+    pub credentials: bool,
+    pub max_age: u32,
+}
+
+impl Default for CorsOptions {
+    fn default() -> Self {
+        Self {
+            origin: "*".to_string(),
+            methods: vec!["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
+            allowed_headers: vec!["Content-Type", "Authorization"]
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
+            exposed_headers: Vec::new(),
+            credentials: false,
+            max_age: 86400,
+        }
+    }
+}
+
+impl CorsOptions {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn origin(mut self, origin: &str) -> Self {
+        self.origin = origin.to_string();
+        self
+    }
+
+    pub fn credentials(mut self, allow: bool) -> Self {
+        self.credentials = allow;
+        self
+    }
+}
+
+/// Advanced CORS middleware with options
+pub fn cors_with_options(
+    options: CorsOptions,
+) -> impl Fn(Request, Response, Next) -> Pin<Box<dyn Future<Output = Response> + Send>>
+       + Send
+       + Sync
+       + Clone {
+    move |req: Request, res: Response, next: Next| {
+        let opts = options.clone();
+        Box::pin(async move {
+            if req.method() == hyper::Method::OPTIONS {
+                let mut response = res.status(204);
+                response = response.header("access-control-allow-origin", &opts.origin);
+                response =
+                    response.header("access-control-allow-methods", &opts.methods.join(", "));
+                response = response.header(
+                    "access-control-allow-headers",
+                    &opts.allowed_headers.join(", "),
+                );
+                if opts.credentials {
+                    response = response.header("access-control-allow-credentials", "true");
+                }
+                response = response.header("access-control-max-age", &opts.max_age.to_string());
+                return response;
+            }
+
+            let response = next(req, res).await;
+            let mut response = response.header("access-control-allow-origin", &opts.origin);
+            if opts.credentials {
+                response = response.header("access-control-allow-credentials", "true");
+            }
+            response
+        })
+    }
+}
+
 /// JSON body parser middleware options
 #[derive(Clone)]
 pub struct JsonOptions {
@@ -139,9 +246,9 @@ impl Default for JsonOptions {
 pub fn json(
     options: JsonOptions,
 ) -> impl Fn(Request, Response, Next) -> Pin<Box<dyn Future<Output = Response> + Send>>
-+ Send
-+ Sync
-+ Clone {
+       + Send
+       + Sync
+       + Clone {
     move |req: Request, res: Response, next: Next| {
         let _options = options.clone();
         Box::pin(async move {
@@ -156,22 +263,6 @@ pub fn json(
             // Continue to next middleware/handler
             next(req, res).await
         })
-    }
-}
-
-/// Rate limiting middleware options
-#[derive(Clone)]
-pub struct RateLimitOptions {
-    pub window_ms: u64,
-    pub max_requests: u32,
-}
-
-impl Default for RateLimitOptions {
-    fn default() -> Self {
-        Self {
-            window_ms: 60_000, // 1 minute
-            max_requests: 100,
-        }
     }
 }
 
@@ -191,11 +282,21 @@ impl Default for CompressionOptions {
     }
 }
 
-/// Security headers middleware
+/// Security headers middleware (Helmet)
+///
+/// Adds security headers to protect against common vulnerabilities.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use rustyx::middleware::helmet;
+///
+/// app.use_middleware(helmet());
+/// ```
 pub fn helmet() -> impl Fn(Request, Response, Next) -> Pin<Box<dyn Future<Output = Response> + Send>>
-+ Send
-+ Sync
-+ Clone {
+       + Send
+       + Sync
+       + Clone {
     move |req: Request, res: Response, next: Next| {
         Box::pin(async move {
             let response = next(req, res).await;
@@ -208,17 +309,28 @@ pub fn helmet() -> impl Fn(Request, Response, Next) -> Pin<Box<dyn Future<Output
                     "max-age=31536000; includeSubDomains",
                 )
                 .header("content-security-policy", "default-src 'self'")
+                .header("x-permitted-cross-domain-policies", "none")
+                .header("referrer-policy", "strict-origin-when-cross-origin")
         })
     }
 }
 
 /// Request timeout middleware
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use rustyx::middleware::timeout;
+///
+/// // 30 second timeout
+/// app.use_middleware(timeout(30000));
+/// ```
 pub fn timeout(
     duration_ms: u64,
 ) -> impl Fn(Request, Response, Next) -> Pin<Box<dyn Future<Output = Response> + Send>>
-+ Send
-+ Sync
-+ Clone {
+       + Send
+       + Sync
+       + Clone {
     move |req: Request, res: Response, next: Next| {
         Box::pin(async move {
             let timeout = tokio::time::Duration::from_millis(duration_ms);
@@ -229,6 +341,37 @@ pub fn timeout(
                     .status(408)
                     .json(serde_json::json!({ "error": "Request Timeout" })),
             }
+        })
+    }
+}
+
+/// Request ID middleware - adds unique ID to each request
+pub fn request_id(
+) -> impl Fn(Request, Response, Next) -> Pin<Box<dyn Future<Output = Response> + Send>>
+       + Send
+       + Sync
+       + Clone {
+    move |req: Request, res: Response, next: Next| {
+        Box::pin(async move {
+            let request_id = uuid::Uuid::new_v4().to_string();
+            let response = next(req, res).await;
+            response.header("x-request-id", &request_id)
+        })
+    }
+}
+
+/// Response time middleware - adds X-Response-Time header
+pub fn response_time(
+) -> impl Fn(Request, Response, Next) -> Pin<Box<dyn Future<Output = Response> + Send>>
+       + Send
+       + Sync
+       + Clone {
+    move |req: Request, res: Response, next: Next| {
+        Box::pin(async move {
+            let start = std::time::Instant::now();
+            let response = next(req, res).await;
+            let duration = start.elapsed();
+            response.header("x-response-time", &format!("{}ms", duration.as_millis()))
         })
     }
 }

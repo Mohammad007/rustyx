@@ -13,246 +13,418 @@
 **A fast, minimalist web framework for Rust inspired by ExpressJS**
 
 [Getting Started](#-getting-started) •
+[Installation](#-installation) •
 [Documentation](#-documentation) •
 [Examples](#-examples) •
+[Deployment](#-deployment) •
 [Contributing](#-contributing)
 
 </div>
 
 ---
 
+## 📖 Table of Contents
+
+- [Features](#-features)
+- [Installation](#-installation)
+- [Getting Started](#-getting-started)
+- [Core Concepts](#-core-concepts)
+  - [Application](#application)
+  - [Routing](#routing)
+  - [Request](#request)
+  - [Response](#response)
+  - [Middleware](#middleware)
+- [Advanced Features](#-advanced-features)
+  - [Rate Limiting](#rate-limiting)
+  - [WebSocket Support](#websocket-support)
+  - [Static File Serving](#static-file-serving)
+  - [Database Integration](#database-integration)
+- [Deployment](#-deployment)
+- [API Reference](#-api-reference)
+- [Examples](#-examples)
+- [Contributing](#-contributing)
+- [License](#-license)
+
+---
+
 ## ✨ Features
 
-- 🎯 **ExpressJS-like API** - Familiar interface for JavaScript developers
-- ⚡ **Blazingly Fast** - Built on top of Hyper and Tokio for maximum performance
-- 🔌 **Middleware Support** - Express-style middleware system
-- 🗄️ **Multi-Database ORM** - Built-in support for MongoDB, MySQL, PostgreSQL, and SQLite
-- 📁 **Organized Structure** - MVC-style folder structure (Controllers, Routes, Models)
-- 🔒 **Type-Safe** - Leverage Rust's type system for safer code
-- 📝 **JSON-First** - Designed for building REST APIs
-- 🛡️ **Built-in Security** - Helmet middleware for security headers
+| Feature | Description |
+|---------|-------------|
+| 🎯 **ExpressJS-like API** | Familiar interface for JavaScript/Node.js developers |
+| ⚡ **Blazingly Fast** | Built on Hyper and Tokio for maximum performance |
+| 🔌 **Middleware Support** | Logger, CORS, Rate Limiting, Helmet, Timeout |
+| 🗄️ **Multi-Database ORM** | MongoDB, MySQL, PostgreSQL, SQLite support |
+| 🌐 **WebSocket Support** | Real-time bidirectional communication |
+| 📁 **Static Files** | Serve static assets with MIME type detection |
+| 🔒 **Type-Safe** | Leverage Rust's type system for safer code |
+| 📝 **JSON-First** | Designed for building REST APIs |
+| 🛡️ **Security** | Built-in Helmet middleware for security headers |
+| ⏱️ **Rate Limiting** | Protect APIs from abuse |
+
+---
 
 ## 📦 Installation
 
-Add RustyX to your `Cargo.toml`:
+### Prerequisites
+
+- **Rust 1.70+** - [Install Rust](https://rustup.rs/)
+- **Cargo** - Comes with Rust
+
+### Add to Cargo.toml
 
 ```toml
 [dependencies]
 rustyx = "0.1.0"
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+```
 
-# Enable database features as needed
-# rustyx = { version = "0.1.0", features = ["mysql", "postgres", "mongodb"] }
+### With Database Features
+
+```toml
+[dependencies]
+# SQLite (default)
+rustyx = "0.1.0"
+
+# MySQL
+rustyx = { version = "0.1.0", features = ["mysql"] }
+
+# PostgreSQL
+rustyx = { version = "0.1.0", features = ["postgres"] }
+
+# MongoDB
+rustyx = { version = "0.1.0", features = ["mongodb"] }
+
+# All databases
+rustyx = { version = "0.1.0", features = ["full"] }
 ```
 
 ### Feature Flags
 
-| Feature | Description |
-|---------|-------------|
-| `default` | SQLite support enabled |
-| `mysql` | MySQL database support |
-| `postgres` | PostgreSQL database support |
-| `sqlite` | SQLite database support |
-| `mongodb` | MongoDB database support |
-| `full` | All database drivers enabled |
+| Feature | Description | Default |
+|---------|-------------|---------|
+| `default` | SQLite support | ✅ |
+| `mysql` | MySQL database | ❌ |
+| `postgres` | PostgreSQL database | ❌ |
+| `sqlite` | SQLite database | ✅ |
+| `mongodb` | MongoDB database | ❌ |
+| `full` | All database drivers | ❌ |
+
+---
 
 ## 🚀 Getting Started
 
-### Quick Start
+### 1. Create a New Project
 
-Create a simple API server in just a few lines:
-
-```rust
-use rustyx::prelude::*;
-
-#[tokio::main]
-async fn main() -> Result<()> {
-    let app = RustyX::new();
-
-    app.get("/", |_req, res| async move {
-        res.json(json!({ "message": "Hello, World!" }))
-    });
-
-    app.listen(3000).await
-}
+```bash
+cargo new my_api
+cd my_api
 ```
 
-### Complete Example
+### 2. Add Dependencies
+
+Edit `Cargo.toml`:
+
+```toml
+[package]
+name = "my_api"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rustyx = "0.1.0"
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+```
+
+### 3. Create Your First API
+
+Edit `src/main.rs`:
 
 ```rust
 use rustyx::prelude::*;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct User {
-    id: Option<String>,
-    name: String,
-    email: String,
-}
 
 #[tokio::main]
 async fn main() -> Result<()> {
     // Initialize logging
     tracing_subscriber::fmt().init();
 
+    // Create application
     let app = RustyX::new();
 
-    // GET all users
-    app.get("/api/users", |_req, res| async move {
-        let users = vec![
-            json!({ "id": "1", "name": "John", "email": "john@example.com" }),
-            json!({ "id": "2", "name": "Jane", "email": "jane@example.com" }),
-        ];
-        res.json(json!({ "data": users }))
+    // Define routes
+    app.get("/", |_req, res| async move {
+        res.json(json!({
+            "message": "Welcome to RustyX!",
+            "version": rustyx::VERSION
+        }))
     });
 
-    // GET single user
-    app.get("/api/users/:id", |req, res| async move {
-        let id = req.param("id").unwrap();
-        res.json(json!({ "id": id, "name": "John Doe" }))
+    app.get("/hello/:name", |req, res| async move {
+        let name = req.param("name").unwrap_or(&"World".to_string());
+        res.json(json!({ "message": format!("Hello, {}!", name) }))
     });
 
-    // POST create user
-    app.post("/api/users", |req, res| async move {
-        match req.json::<User>() {
-            Ok(user) => res.status(201).json(user),
-            Err(e) => res.bad_request(&e.to_string()),
-        }
-    });
-
-    // PUT update user
-    app.put("/api/users/:id", |req, res| async move {
-        let id = req.param("id").unwrap();
-        match req.json::<User>() {
-            Ok(mut user) => {
-                user.id = Some(id.clone());
-                res.json(user)
-            }
-            Err(e) => res.bad_request(&e.to_string()),
-        }
-    });
-
-    // DELETE user
-    app.delete("/api/users/:id", |req, res| async move {
-        let id = req.param("id").unwrap();
-        res.json(json!({ "deleted": true, "id": id }))
-    });
-
-    info!("🚀 Server running at http://localhost:3000");
+    // Start server
+    info!("🚀 Server starting...");
     app.listen(3000).await
 }
 ```
 
-## 📖 Documentation
+### 4. Run Your Server
 
-### Request Object
+```bash
+cargo run
+```
+
+Visit `http://localhost:3000` in your browser!
+
+---
+
+## 📚 Core Concepts
+
+### Application
+
+The `RustyX` struct is the main entry point:
+
+```rust
+use rustyx::prelude::*;
+
+let app = RustyX::new();
+
+// Configure routes
+app.get("/path", handler);
+app.post("/path", handler);
+app.put("/path", handler);
+app.delete("/path", handler);
+app.patch("/path", handler);
+
+// Add middleware
+app.use_middleware(logger());
+app.use_middleware(cors("*"));
+
+// Start server
+app.listen(3000).await?;
+```
+
+### Routing
+
+RustyX supports ExpressJS-style routing with path parameters:
+
+```rust
+// Basic routes
+app.get("/", handler);
+app.post("/users", create_user);
+
+// Path parameters
+app.get("/users/:id", |req, res| async move {
+    let id = req.param("id").unwrap();
+    res.json(json!({ "user_id": id }))
+});
+
+// Multiple parameters
+app.get("/users/:userId/posts/:postId", |req, res| async move {
+    let user_id = req.param("userId").unwrap();
+    let post_id = req.param("postId").unwrap();
+    res.json(json!({ "user": user_id, "post": post_id }))
+});
+
+// Using Router for grouping
+let mut api = Router::with_prefix("/api/v1");
+api.get("/users", list_users);
+api.post("/users", create_user);
+app.use_router("/", api);
+```
+
+### Request
 
 The `Request` object provides access to request data:
 
 ```rust
-// Get URL parameters
-let id = req.param("id");
-
-// Get query parameters
-let page = req.query_param("page");
-
-// Parse JSON body
-let data: MyStruct = req.json()?;
-
-// Get headers
-let auth = req.header("authorization");
-let token = req.bearer_token();
-
-// Request info
-let method = req.method();
-let path = req.path();
-let ip = req.ip();
+|req, res| async move {
+    // HTTP method
+    let method = req.method();
+    
+    // Request path
+    let path = req.path();
+    
+    // URL parameters (/users/:id)
+    let id = req.param("id");
+    
+    // Query parameters (?page=1&limit=10)
+    let page = req.query_param("page");
+    let all_query = req.query();
+    
+    // Parse JSON body
+    let user: User = req.json()?;
+    
+    // Raw body
+    let body_bytes = req.body();
+    let body_string = req.body_string()?;
+    
+    // Headers
+    let content_type = req.header("content-type");
+    let auth_header = req.authorization();
+    let token = req.bearer_token();
+    
+    // Client information
+    let ip = req.ip();
+    let user_agent = req.user_agent();
+    
+    // Content checks
+    let is_json = req.is_json();
+    let accepts_json = req.accepts("application/json");
+    
+    res.send("OK")
+}
 ```
 
-### Response Object
+### Response
 
 The `Response` object provides methods for sending responses:
 
 ```rust
-// JSON response
-res.json(json!({ "key": "value" }))
-
-// Text response
-res.send("Hello, World!")
-
-// HTML response
-res.html("<h1>Hello</h1>")
-
-// Status codes
-res.status(201).json(data)
-res.status(404).not_found()
-res.status(400).bad_request("Invalid input")
-res.status(401).unauthorized()
-
-// Redirects
-res.redirect("/login")
-res.redirect_permanent("/new-url")
-
-// Headers & Cookies
-res.header("X-Custom", "value")
-res.cookie("session", "abc123", CookieOptions::new())
-res.cors("*")
+|req, res| async move {
+    // JSON response
+    res.json(json!({ "key": "value" }))
+    
+    // Text response
+    res.send("Hello, World!")
+    
+    // HTML response
+    res.html("<h1>Hello</h1>")
+    
+    // Status codes
+    res.status(201).json(data)
+    
+    // Common responses
+    res.created(data)           // 201
+    res.no_content()            // 204
+    res.bad_request("message")  // 400
+    res.unauthorized()          // 401
+    res.forbidden()             // 403
+    res.not_found()             // 404
+    res.internal_error("msg")   // 500
+    
+    // Redirects
+    res.redirect("/new-location")
+    res.redirect_permanent("/moved")
+    
+    // Headers
+    res.header("X-Custom", "value")
+    res.content_type("application/xml")
+    res.cors("*")
+    
+    // Cookies
+    res.cookie("session", "abc123", CookieOptions::new())
+    res.clear_cookie("session")
+}
 ```
 
 ### Middleware
 
-Add middleware for cross-cutting concerns:
+Middleware functions process requests before they reach route handlers:
 
 ```rust
-use rustyx::middleware::{logger, cors, helmet};
+use rustyx::middleware::*;
 
 let app = RustyX::new();
 
 // Built-in middleware
-app.use_middleware(logger());
-app.use_middleware(cors("*"));
-app.use_middleware(helmet());
+app.use_middleware(logger());           // Request logging
+app.use_middleware(cors("*"));          // CORS headers
+app.use_middleware(helmet());           // Security headers
+app.use_middleware(timeout(30000));     // 30s timeout
+app.use_middleware(request_id());       // Add X-Request-ID
+app.use_middleware(response_time());    // Add X-Response-Time
+
+// Rate limiting
+let rate_config = RateLimiterConfig::new(100, 60); // 100 req/min
+app.use_middleware(rate_limiter(rate_config));
 
 // Custom middleware
 app.use_middleware(|req, res, next| async move {
-    println!("Request: {} {}", req.method(), req.path());
+    println!("Before: {} {}", req.method(), req.path());
     let response = next(req, res).await;
-    println!("Response sent");
+    println!("After: {}", response.get_status());
     response
 });
 ```
 
-### Router
+---
 
-Organize routes using the Router:
+## 🔥 Advanced Features
+
+### Rate Limiting
+
+Protect your API from abuse:
 
 ```rust
-use rustyx::Router;
+use rustyx::middleware::{rate_limiter, RateLimiterConfig};
 
-// Create a router with prefix
-let mut api = Router::with_prefix("/api/v1");
+// Basic: 100 requests per 60 seconds
+app.use_middleware(simple_rate_limit(100, 60));
 
-api.get("/users", users_handler);
-api.post("/users", create_user_handler);
-api.get("/users/:id", get_user_handler);
+// Advanced configuration
+let config = RateLimiterConfig::new(100, 60)
+    .message("Rate limit exceeded. Try again later.")
+    .skip(vec!["/health", "/metrics"]);
 
-// Mount router on app
-app.use_router("/", api);
-
-// Route groups
-let mut router = Router::new();
-router.group("/admin", |r| {
-    r.get("/dashboard", dashboard_handler);
-    r.get("/users", admin_users_handler);
-});
+app.use_middleware(rate_limiter(config));
 ```
 
-### Database (ORM)
+### WebSocket Support
 
-Connect to databases with the built-in ORM:
+Real-time communication:
+
+```rust
+use rustyx::websocket::{WsServer, WsMessage};
+
+let ws_server = WsServer::new();
+
+// Send to specific client
+ws_server.send_to(&conn_id, WsMessage::Text("Hello!".into())).await;
+
+// Broadcast to all
+ws_server.broadcast(WsMessage::Text("Announcement".into())).await;
+
+// Room-based messaging
+ws_server.join_room("chat", conn_id.clone());
+ws_server.broadcast_to_room("chat", WsMessage::Text("Chat message".into())).await;
+```
+
+### Static File Serving
+
+Serve static files:
+
+```rust
+use rustyx::static_files::{static_handler, StaticConfig};
+
+// Basic usage
+let config = StaticConfig::new("./public");
+app.get("/static/*", static_handler(config));
+
+// With options
+let config = StaticConfig::new("./public")
+    .index("index.html")
+    .max_age(3600)
+    .directory_listing(false);
+```
+
+### Database Integration
+
+Connect and query databases:
 
 ```rust
 use rustyx::db::prelude::*;
 
-// Configure database
+// Configure SQLite
+let config = DatabaseConfig::new(DbDriver::SQLite, "app.db");
+
+// Configure PostgreSQL
 let config = DatabaseConfig::new(DbDriver::PostgreSQL, "mydb")
     .host("localhost")
     .port(5432)
@@ -262,7 +434,7 @@ let config = DatabaseConfig::new(DbDriver::PostgreSQL, "mydb")
 // Initialize connection
 init_db(config).await?;
 
-// Use Query Builder
+// Query builder
 let query = QueryBuilder::table("users")
     .select(&["id", "name", "email"])
     .where_eq("active", "true")
@@ -271,173 +443,292 @@ let query = QueryBuilder::table("users")
     .build();
 ```
 
-### Models
+---
 
-Define models with the Model trait:
+## 🚀 Deployment
+
+### Production Build
+
+```bash
+# Create optimized release build
+cargo build --release
+
+# The binary is at ./target/release/my_api
+```
+
+### Docker Deployment
+
+Create `Dockerfile`:
+
+```dockerfile
+# Build stage
+FROM rust:1.75 as builder
+WORKDIR /app
+COPY . .
+RUN cargo build --release
+
+# Runtime stage
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y libssl3 ca-certificates && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /app/target/release/my_api /usr/local/bin/
+EXPOSE 3000
+CMD ["my_api"]
+```
+
+Build and run:
+
+```bash
+docker build -t my-api .
+docker run -p 3000:3000 my-api
+```
+
+### Docker Compose
+
+```yaml
+version: '3.8'
+services:
+  api:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - RUST_LOG=info
+      - DATABASE_URL=postgres://user:pass@db:5432/mydb
+    depends_on:
+      - db
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: pass
+      POSTGRES_DB: mydb
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
+```
+
+### Environment Variables
 
 ```rust
-use rustyx::models::Model;
+use std::env;
+
+let port: u16 = env::var("PORT")
+    .unwrap_or_else(|_| "3000".to_string())
+    .parse()
+    .unwrap();
+
+let db_url = env::var("DATABASE_URL")
+    .expect("DATABASE_URL must be set");
+```
+
+### Systemd Service
+
+Create `/etc/systemd/system/my-api.service`:
+
+```ini
+[Unit]
+Description=My RustyX API
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/my-api
+ExecStart=/opt/my-api/my_api
+Restart=always
+RestartSec=5
+Environment=RUST_LOG=info
+Environment=PORT=3000
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start:
+
+```bash
+sudo systemctl enable my-api
+sudo systemctl start my-api
+sudo systemctl status my-api
+```
+
+### Nginx Reverse Proxy
+
+```nginx
+server {
+    listen 80;
+    server_name api.example.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+```
+
+### Cloud Deployment
+
+#### AWS / DigitalOcean / Linode
+
+1. Create a VPS instance
+2. Install Rust: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
+3. Clone and build your project
+4. Configure systemd service
+5. Set up Nginx reverse proxy
+6. Configure SSL with Let's Encrypt
+
+#### Railway / Render / Fly.io
+
+These platforms auto-detect Rust projects. Just push your code!
+
+```bash
+# Fly.io example
+flyctl launch
+flyctl deploy
+```
+
+---
+
+## 📖 API Reference
+
+### RustyX (Application)
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `new()` | `RustyX::new()` | Create new app |
+| `get()` | `.get(path, handler)` | GET route |
+| `post()` | `.post(path, handler)` | POST route |
+| `put()` | `.put(path, handler)` | PUT route |
+| `delete()` | `.delete(path, handler)` | DELETE route |
+| `patch()` | `.patch(path, handler)` | PATCH route |
+| `use_middleware()` | `.use_middleware(fn)` | Add middleware |
+| `use_router()` | `.use_router(path, router)` | Mount router |
+| `listen()` | `.listen(port).await` | Start server |
+
+### Request
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `method()` | `&Method` | HTTP method |
+| `path()` | `&str` | Request path |
+| `param(name)` | `Option<&String>` | URL parameter |
+| `query_param(name)` | `Option<&String>` | Query parameter |
+| `json<T>()` | `Result<T>` | Parse JSON body |
+| `body()` | `&Bytes` | Raw body |
+| `header(name)` | `Option<&str>` | Get header |
+| `bearer_token()` | `Option<&str>` | Bearer token |
+| `ip()` | `IpAddr` | Client IP |
+
+### Response
+
+| Method | Description |
+|--------|-------------|
+| `.status(code)` | Set status code |
+| `.json(data)` | Send JSON |
+| `.send(text)` | Send text |
+| `.html(html)` | Send HTML |
+| `.redirect(url)` | Redirect |
+| `.header(name, value)` | Set header |
+| `.cookie(name, value, opts)` | Set cookie |
+
+---
+
+## 📝 Examples
+
+### REST API with CRUD
+
+```rust
+use rustyx::prelude::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct User {
     id: Option<String>,
     name: String,
     email: String,
-    created_at: DateTime<Utc>,
 }
 
-impl Model for User {
-    fn collection_name() -> &'static str { "users" }
+#[tokio::main]
+async fn main() -> Result<()> {
+    let app = RustyX::new();
     
-    fn get_id(&self) -> Option<String> { self.id.clone() }
-    
-    fn set_id(&mut self, id: String) { self.id = Some(id); }
-    
-    fn validate(&self) -> Result<()> {
-        if self.name.is_empty() {
-            return Err(Error::validation("Name is required"));
-        }
-        Ok(())
+    app.use_middleware(logger());
+    app.use_middleware(cors("*"));
+
+    // List users
+    app.get("/api/users", |_req, res| async move {
+        res.json(json!({ "users": [] }))
+    });
+
+    // Get user
+    app.get("/api/users/:id", |req, res| async move {
+        let id = req.param("id").unwrap();
+        res.json(json!({ "id": id }))
+    });
+
+    // Create user
+    app.post("/api/users", |req, res| async move {
+        let user: User = req.json()?;
+        res.created(user)
+    });
+
+    // Update user
+    app.put("/api/users/:id", |req, res| async move {
+        let user: User = req.json()?;
+        res.json(user)
+    });
+
+    // Delete user
+    app.delete("/api/users/:id", |req, res| async move {
+        res.no_content()
+    });
+
+    app.listen(3000).await
+}
+```
+
+### With Authentication
+
+```rust
+app.use_middleware(|req, res, next| async move {
+    // Skip auth for public routes
+    if req.path() == "/login" || req.path() == "/health" {
+        return next(req, res).await;
     }
-}
+
+    // Check authorization
+    match req.bearer_token() {
+        Some(token) if validate_token(token) => next(req, res).await,
+        _ => res.unauthorized(),
+    }
+});
 ```
 
-## 📁 Project Structure
-
-RustyX follows an organized folder structure similar to Node.js/Express:
-
-```
-my_project/
-├── Cargo.toml
-├── src/
-│   ├── main.rs           # Application entry point
-│   ├── lib.rs            # Library exports
-│   ├── controllers/      # Request handlers
-│   │   ├── mod.rs
-│   │   ├── user_controller.rs
-│   │   └── product_controller.rs
-│   ├── routes/           # Route definitions
-│   │   ├── mod.rs
-│   │   ├── user_routes.rs
-│   │   └── api_routes.rs
-│   ├── models/           # Data models
-│   │   ├── mod.rs
-│   │   ├── user.rs
-│   │   └── product.rs
-│   ├── db/               # Database layer
-│   │   ├── mod.rs
-│   │   ├── connection.rs
-│   │   └── migrations/
-│   ├── middleware/       # Custom middleware
-│   │   └── mod.rs
-│   └── utils/            # Utility functions
-│       └── mod.rs
-├── tests/                # Integration tests
-└── examples/             # Example applications
-```
-
-## 🔧 API Reference
-
-### RustyX (App)
-
-| Method | Description |
-|--------|-------------|
-| `new()` | Create a new application |
-| `get(path, handler)` | Register GET route |
-| `post(path, handler)` | Register POST route |
-| `put(path, handler)` | Register PUT route |
-| `delete(path, handler)` | Register DELETE route |
-| `patch(path, handler)` | Register PATCH route |
-| `all(path, handler)` | Register handler for all methods |
-| `use_middleware(fn)` | Add middleware |
-| `use_router(path, router)` | Mount a router |
-| `listen(port)` | Start the server |
-
-### Request
-
-| Method | Description |
-|--------|-------------|
-| `method()` | Get HTTP method |
-| `path()` | Get request path |
-| `param(name)` | Get route parameter |
-| `query_param(name)` | Get query parameter |
-| `json<T>()` | Parse JSON body |
-| `body()` | Get raw body bytes |
-| `header(name)` | Get header value |
-| `bearer_token()` | Extract Bearer token |
-| `ip()` | Get client IP address |
-
-### Response
-
-| Method | Description |
-|--------|-------------|
-| `status(code)` | Set status code |
-| `json(data)` | Send JSON response |
-| `send(text)` | Send text response |
-| `html(html)` | Send HTML response |
-| `redirect(url)` | Send redirect |
-| `header(name, value)` | Set header |
-| `cookie(name, value, opts)` | Set cookie |
-| `cors(origin)` | Add CORS headers |
-
-## 🧪 Testing
-
-Run the test suite:
-
-```bash
-cargo test
-```
-
-Run with all features:
-
-```bash
-cargo test --all-features
-```
-
-## 📊 Benchmarks
-
-RustyX is designed for high performance:
-
-```
-Requests/sec: ~150,000 (simple JSON response)
-Latency (avg): ~0.5ms
-Memory: ~5MB idle
-```
-
-*Benchmarks on AMD Ryzen 9 5900X, 32GB RAM*
-
-## 🗺️ Roadmap
-
-- [x] Basic routing
-- [x] Middleware support
-- [x] JSON parsing
-- [x] Query builder
-- [ ] WebSocket support
-- [ ] GraphQL integration
-- [ ] OpenAPI/Swagger generation
-- [ ] Rate limiting middleware
-- [ ] Session management
-- [ ] File uploads
+---
 
 ## 🤝 Contributing
 
 We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
+2. Create feature branch: `git checkout -b feature/amazing-feature`
+3. Commit changes: `git commit -m 'Add amazing feature'`
+4. Push: `git push origin feature/amazing-feature`
 5. Open a Pull Request
+
+---
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- Inspired by [ExpressJS](https://expressjs.com/)
-- Built with [Hyper](https://hyper.rs/) and [Tokio](https://tokio.rs/)
-- Routing powered by [matchit](https://github.com/ibraheemdev/matchit)
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file.
 
 ---
 
@@ -445,7 +736,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Made with ❤️ by the RustyX Team**
 
+⭐ Star us on [GitHub](https://github.com/Mohammad007/rustyx)!
+
 [Report Bug](https://github.com/Mohammad007/rustyx/issues) •
-[Request Feature](https://github.com/Mohammad007/rustyx/issues)
+[Request Feature](https://github.com/Mohammad007/rustyx/issues) •
+[Documentation](https://docs.rs/rustyx)
 
 </div>

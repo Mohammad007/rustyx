@@ -1,7 +1,24 @@
 //! Main Application Module
 //!
-//! This module contains the core `RustyX` application struct and its implementation,
+//! This module contains the core [`RustyX`] application struct and its implementation,
 //! providing an ExpressJS-like interface for building web APIs.
+//!
+//! # Example
+//!
+//! ```rust,no_run
+//! use rustyx::prelude::*;
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<()> {
+//!     let app = RustyX::new();
+//!
+//!     app.get("/", |_req, res| async move {
+//!         res.json(json!({ "message": "Hello!" }))
+//!     });
+//!
+//!     app.listen(3000).await
+//! }
+//! ```
 
 use crate::error::Result;
 use crate::middleware::{MiddlewareStack, Next};
@@ -23,24 +40,65 @@ use std::sync::Arc;
 use tokio::net::TcpListener;
 use tracing::{error, info};
 
-/// Handler function type for route callbacks
+/// Handler function type for route callbacks.
+///
+/// This is the type signature for route handlers. Handlers receive a [`Request`]
+/// and [`Response`], and return a [`Future`] that resolves to a [`Response`].
 pub type HandlerFn =
     Arc<dyn Fn(Request, Response) -> Pin<Box<dyn Future<Output = Response> + Send>> + Send + Sync>;
 
-/// The main application struct, similar to Express's `app`
+/// The main application struct, similar to Express's `app`.
+///
+/// `RustyX` is the core of your web application. It handles routing,
+/// middleware, and server lifecycle.
+///
+/// # Example
+///
+/// ```rust,no_run
+/// use rustyx::prelude::*;
+///
+/// #[tokio::main]
+/// async fn main() -> Result<()> {
+///     let app = RustyX::new();
+///
+///     // Add middleware
+///     app.use_middleware(logger());
+///     app.use_middleware(cors("*"));
+///
+///     // Define routes
+///     app.get("/", |_req, res| async move {
+///         res.json(json!({ "status": "ok" }))
+///     });
+///
+///     app.get("/users/:id", |req, res| async move {
+///         let id = req.param("id").unwrap();
+///         res.json(json!({ "user_id": id }))
+///     });
+///
+///     // Start server
+///     app.listen(3000).await
+/// }
+/// ```
 pub struct RustyX {
     router: Arc<std::sync::RwLock<Router>>,
     middleware_stack: Arc<std::sync::RwLock<MiddlewareStack>>,
     settings: Arc<std::sync::RwLock<AppSettings>>,
 }
 
-/// Application settings
+/// Application settings configuration.
+///
+/// Controls various aspects of application behavior.
 #[derive(Debug, Clone)]
 pub struct AppSettings {
+    /// Number of spaces for JSON formatting (None for compact)
     pub json_spaces: Option<usize>,
+    /// Whether to trust proxy headers (X-Forwarded-For, etc.)
     pub trust_proxy: bool,
+    /// Enable case-sensitive routing
     pub case_sensitive_routing: bool,
+    /// Enable strict routing (trailing slashes matter)
     pub strict_routing: bool,
+    /// Current environment (development, production, etc.)
     pub env: String,
 }
 
@@ -57,7 +115,15 @@ impl Default for AppSettings {
 }
 
 impl RustyX {
-    /// Creates a new RustyX application instance
+    /// Creates a new RustyX application instance.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use rustyx::RustyX;
+    ///
+    /// let app = RustyX::new();
+    /// ```
     pub fn new() -> Self {
         Self {
             router: Arc::new(std::sync::RwLock::new(Router::new())),

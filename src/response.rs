@@ -80,6 +80,22 @@ impl Response {
         self
     }
 
+    /// Send raw bytes as response body
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use rustyx::Response;
+    ///
+    /// let res = Response::new()
+    ///     .header("Content-Type", "image/png")
+    ///     .send_bytes(image_bytes);
+    /// ```
+    pub fn send_bytes(mut self, body: Vec<u8>) -> Self {
+        self.body = Bytes::from(body);
+        self
+    }
+
     /// Send a JSON response
     ///
     /// # Example
